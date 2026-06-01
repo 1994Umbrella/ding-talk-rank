@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>申购王 · 钉钉申购排行榜</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --glass-bg: rgba(255,255,255,0.04);
+      --glass-border: rgba(255,255,255,0.08);
+      --glass-shadow: 0 8px 60px rgba(0,0,0,0.4);
+      --text-primary: #f0eeff;
+      --text-secondary: rgba(240,238,255,0.55);
+      --accent-1: #6ec8ff;
+      --accent-2: #b47cff;
+      --accent-3: #ff7eb3;
+      --gold: #ffd700;
+      --silver: #c0c0c0;
+      --bronze: #cd7f32;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: #08080f;
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .blobs {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+    }
+    .blob {
+      position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.3;
+      animation: blobFloat 20s ease-in-out infinite;
+    }
+    .blob:nth-child(1) {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, #6ec8ff, #b47cff);
+      top: -10%; left: -10%; animation-delay: 0s;
+    }
+    .blob:nth-child(2) {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, #ff7eb3, #b47cff);
+      bottom: -15%; right: -8%; animation-delay: -6s;
+    }
+    @keyframes blobFloat {
+      0%,100%{transform:translate(0,0)scale(1)}
+      25%{transform:translate(60px,-80px)scale(1.08)}
+      50%{transform:translate(-40px,60px)scale(0.92)}
+      75%{transform:translate(80px,40px)scale(1.04)}
+    }
+
+    .noise {
+      position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 256px 256px;
+    }
+
+    .glass {
+      background: var(--glass-bg);
+      backdrop-filter: blur(32px) saturate(1.2);
+      -webkit-backdrop-filter: blur(32px) saturate(1.2);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+
+    .container {
+      position: relative; z-index: 2;
+      max-width: 960px; margin: 0 auto; padding: 0 20px;
+    }
+
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      background: rgba(8,8,15,0.6); backdrop-filter: blur(24px);
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .nav-logo {
+      font-family: 'Syne',sans-serif; font-weight: 700; font-size: 18px;
+      text-decoration: none; color: var(--text-primary);
+    }
+    .nav-logo span {
+      background: linear-gradient(135deg,var(--accent-1),var(--accent-2),var(--accent-3));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero {
+      padding: 120px 0 40px; text-align: center;
+    }
+    .hero h1 {
+      font-family: 'Syne',sans-serif; font-weight: 800; font-size: 38px;
+      letter-spacing: -0.02em; margin-bottom: 12px;
+      background: linear-gradient(135deg,#f0eeff 30%,var(--accent-1),var(--accent-2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      color: var(--text-secondary); font-size: 16px; line-height: 1.7;
+      max-width: 420px; margin: 0 auto 32px;
+    }
+
+    .upload-area {
+      max-width: 520px; margin: 0 auto 60px;
+      padding: 48px 32px; border-radius: 32px; text-align: center;
+      border: 1.5px dashed rgba(255,255,255,0.12);
+      cursor: pointer; transition: border-color 0.3s, background 0.3s;
+    }
+    .upload-area:hover {
+      border-color: var(--accent-1);
+      background: rgba(110,200,255,0.03);
+    }
+    .upload-area .icon { font-size: 40px; margin-bottom: 16px; }
+    .upload-area p { font-size: 15px; color: var(--text-secondary); }
+    .upload-area .hint { font-size: 13px; color: rgba(240,238,255,0.3); margin-top: 8px; }
+
+    .upload-area.has-data {
+      border-color: var(--accent-2);
+      padding: 24px 32px;
+    }
+
+    .controls {
+      display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px;
+      align-items: center;
+    }
+    .controls .tab-group {
+      display: flex; gap: 4px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 12px; padding: 3px;
+    }
+    .controls .tab {
+      padding: 8px 20px; border-radius: 10px; border: none;
+      background: transparent; color: var(--text-secondary);
+      font-size: 14px; font-weight: 500; cursor: pointer;
+      font-family: 'DM Sans',sans-serif; transition: all 0.25s;
+    }
+    .controls .tab.active {
+      background: rgba(255,255,255,0.08); color: var(--text-primary);
+    }
+    .controls .tab:hover { color: var(--text-primary); }
+    .badge-count {
+      margin-left: auto;
+      font-size: 14px; color: var(--text-secondary);
+    }
+
+    .rank-table {
+      width: 100%; border-collapse: collapse; margin-bottom: 40px;
+    }
+    .rank-table th {
+      text-align: left; padding: 12px 16px;
+      font-size: 12px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-secondary);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .rank-table td {
+      padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,0.03);
+      font-size: 15px;
+    }
+    .rank-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .rank-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; border-radius: 8px;
+      font-size: 13px; font-weight: 700;
+      background: rgba(255,255,255,0.05); color: var(--text-secondary);
+    }
+    .rank-1 { background: rgba(255,215,0,0.15); color: var(--gold); }
+    .rank-2 { background: rgba(192,192,192,0.15); color: var(--silver); }
+    .rank-3 { background: rgba(205,127,50,0.15); color: var(--bronze); }
+
+    .badge {
+      display: inline-block; padding: 2px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+    }
+    .badge-gold { background: rgba(255,215,0,0.12); color: var(--gold); }
+    .badge-silver { background: rgba(192,192,192,0.12); color: var(--silver); }
+    .badge-bronze { background: rgba(205,127,50,0.12); color: var(--bronze); }
+    .badge-purple { background: rgba(180,124,255,0.12); color: var(--accent-2); }
+
+    .loading {
+      text-align: center; padding: 80px 0; color: var(--text-secondary);
+    }
+
+    .empty-state {
+      text-align: center; padding: 60px 0; color: var(--text-secondary);
+    }
+    .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+
+    .stats-row {
+      display: grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr));
+      gap: 16px; margin-bottom: 32px;
+    }
+    .stat-card {
+      padding: 20px 24px; border-radius: 20px; text-align: center;
+    }
+    .stat-card .num {
+      font-family: 'Syne',sans-serif; font-size: 28px; font-weight: 700;
+      background: linear-gradient(135deg,var(--accent-1),var(--accent-2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .stat-card .label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+
+    .title-card {
+      padding: 20px 24px; border-radius: 20px;
+      display: flex; align-items: center; gap: 16px; margin-bottom: 24px;
+    }
+    .title-card .emoji { font-size: 36px; }
+    .title-card .info h3 { font-size: 18px; font-weight: 600; }
+    .title-card .info p { font-size: 14px; color: var(--text-secondary); margin-top: 2px; }
+
+    .footer {
+      text-align: center; padding: 40px 24px;
+      color: rgba(240,238,255,0.2); font-size: 13px; position: relative; z-index: 2;
+    }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 8px; }
+
+    @media (max-width: 600px) {
+      .hero h1 { font-size: 26px; }
+      .controls { flex-direction: column; align-items: stretch; }
+      .controls .tab-group { justify-content: center; }
+      .badge-count { margin-left: 0; text-align: center; }
+      .rank-table td, .rank-table th { padding: 10px 12px; font-size: 13px; }
+      .stats-row { grid-template-columns: repeat(2,1fr); }
+    }
+
+    .sample-btn {
+      display: inline-block; margin-top: 12px;
+      padding: 8px 20px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.08);
+      background: transparent; color: var(--accent-1); cursor: pointer;
+      font-size: 13px; font-family: 'DM Sans',sans-serif; transition: all 0.25s;
+    }
+    .sample-btn:hover { border-color: var(--accent-1); background: rgba(110,200,255,0.05); }
+  </style>
+</head>
+<body>
+  <div class="blobs"><div class="blob"></div><div class="blob"></div></div>
+  <div class="noise"></div>
+
+  <nav>
+    <a href="#" class="nav-logo">🏆 <span>申购王</span></a>
+  </nav>
+
+  <div class="hero">
+    <div class="container">
+      <h1>申购排行榜</h1>
+      <p>导入钉钉申购数据，看看谁是本月"申购王"——让每个申请都公开透明</p>
+    </div>
+  </div>
+
+  <div class="container" id="app">
+    <div id="uploadArea" class="upload-area glass">
+      <div class="icon">📂</div>
+      <p>点击上传或拖拽 Excel / CSV 文件</p>
+      <p class="hint">支持 .xlsx, .xls, .csv 格式</p>
+      <button class="sample-btn" id="sampleBtn">加载示例数据试试</button>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none">
+
+    <div id="content" style="display:none">
+      <div class="stats-row" id="statsRow"></div>
+      <div id="titleCard"></div>
+
+      <div class="controls">
+        <div class="tab-group">
+          <button class="tab active" data-tab="person">个人排行</button>
+          <button class="tab" data-tab="dept">部门排行</button>
+        </div>
+        <div class="badge-count" id="countInfo"></div>
+      </div>
+
+      <div class="glass" style="border-radius:24px;overflow:hidden;padding:4px 0 0">
+        <div id="tableWrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">© 2026 申购王 · 钉钉申购排行榜</div>
+
+  <script>
+    let rawData = [];
+    let currentTab = 'person';
+
+    const TITLES = {
+      '0': { emoji: '👑', label: '申购王', desc: '本月申购次数最多，无人能挡' },
+      '1': { emoji: '🥈', label: '申购达人', desc: '仅次于王者，再接再厉' },
+      '2': { emoji: '🥉', label: '申购能手', desc: '冲进前三，实力不凡' },
+      'other': { emoji: '💪', label: '积极参与', desc: '感谢为公司发展贡献力量' },
+    };
+
+    const DEPT_TITLES = {
+      '0': { emoji: '🏢', label: '王牌部门', desc: '全部门申购热情最高' },
+    };
+
+    const SAMPLE_DATA = [
+      { name:'张三', dept:'技术部',   date:'2026-05-06', amount:3500,  reason:'开发服务器' },
+      { name:'李四', dept:'市场部',   date:'2026-05-08', amount:1200,  reason:'推广物料' },
+      { name:'王五', dept:'技术部',   date:'2026-05-10', amount:8000,  reason:'GPU 租赁' },
+      { name:'赵六', dept:'行政部',   date:'2026-05-12', amount:500,   reason:'办公用品' },
+      { name:'张三', dept:'技术部',   date:'2026-05-14', amount:2000,  reason:'域名续费' },
+      { name:'孙七', dept:'市场部',   date:'2026-05-15', amount:6000,  reason:'展会赞助' },
+      { name:'李四', dept:'市场部',   date:'2026-05-18', amount:800,   reason:'交通费' },
+      { name:'周八', dept:'产品部',   date:'2026-05-19', amount:4500,  reason:'用户调研' },
+      { name:'王五', dept:'技术部',   date:'2026-05-20', amount:12000, reason:'AI 算力包' },
+      { name:'张三', dept:'技术部',   date:'2026-05-22', amount:1500,  reason:'书籍采购' },
+      { name:'吴九', dept:'行政部',   date:'2026-05-23', amount:3000,  reason:'办公家具' },
+      { name:'赵六', dept:'行政部',   date:'2026-05-25', amount:200,   reason:'桶装水' },
+      { name:'孙七', dept:'市场部',   date:'2026-05-26', amount:4000,  reason:'广告投放' },
+      { name:'李四', dept:'市场部',   date:'2026-05-27', amount:2500,  reason:'设计外包' },
+      { name:'周八', dept:'产品部',   date:'2026-05-28', amount:1800,  reason:'原型工具' },
+      { name:'王五', dept:'技术部',   date:'2026-05-29', amount:6000,  reason:'VPN 年费' },
+      { name:'张三', dept:'技术部',   date:'2026-05-30', amount:900,   reason:'键盘' },
+      { name:'吴九', dept:'行政部',   date:'2026-05-31', amount:1200,  reason:'绿植' },
+      { name:'陈十', dept:'产品部',   date:'2026-05-11', amount:3200,  reason:'竞品分析' },
+      { name:'陈十', dept:'产品部',   date:'2026-05-21', amount:1600,  reason:'字体授权' },
+    ];
+
+    function getChineseNumber(n) {
+      const map = ['零','一','二','三','四','五','六','七','八','九','十','十一','十二','十三','十四','十五','十六','十七','十八','十九','二十'];
+      return map[n] || n;
+    }
+
+    function loadData(data) {
+      rawData = data;
+      document.getElementById('uploadArea').classList.add('has-data');
+      document.getElementById('uploadArea').querySelector('p').textContent = `已加载 ${data.length} 条记录，点击重新导入`;
+      document.getElementById('content').style.display = 'block';
+      document.getElementById('uploadArea').querySelector('.hint').textContent = '';
+      render();
+    }
+
+    function parseExcel(file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const wb = XLSX.read(e.target.result, {type:'array', codepage:65001});
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const json = XLSX.utils.sheet_to_json(ws, {defval:''});
+          if (!json.length) { alert('文件为空，请检查'); return; }
+
+          const keys = Object.keys(json[0]);
+          const nameKey = keys.find(k => /(姓名|申请人|名称|name)/i.test(k)) || keys[0];
+          const deptKey = keys.find(k => /(部门|科室|dept)/i.test(k)) || (keys[1] || keys[0]);
+          const dateKey = keys.find(k => /(日期|时间|date|time|申购日)/i.test(k)) || (keys[2] || keys[0]);
+          const amountKey = keys.find(k => /(金额|费用|总额|amount|total|money|price)/i.test(k));
+          const reasonKey = keys.find(k => /(事由|用途|说明|原因|reason|desc)/i.test(k));
+
+          const mapped = json.map(row => ({
+            name: String(row[nameKey] || '').trim(),
+            dept: String(row[deptKey] || '').trim(),
+            date: parseDate(String(row[dateKey] || '').trim()),
+            amount: amountKey ? parseFloat(row[amountKey]) || 0 : 0,
+            reason: reasonKey ? String(row[reasonKey] || '').trim() : '',
+          })).filter(d => d.name && d.date);
+
+          if (!mapped.length) { alert('未识别到有效数据，请确认表头包含"姓名/申请人"和"日期"列'); return; }
+          loadData(mapped);
+        } catch(err) {
+          alert('解析失败：' + err.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function parseDate(str) {
+      if (!str) return '';
+      if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0,10);
+      if (/^\d{4}\/\d{2}\/\d{2}/.test(str)) return str.replace(/\//g,'-').slice(0,10);
+      if (/^\d{4}年\d{1,2}月\d{1,2}/.test(str)) {
+        const m = str.match(/(\d{4})年(\d{1,2})月(\d{1,2})/);
+        if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+      }
+      const n = Date.parse(str);
+      if (!isNaN(n)) {
+        const d = new Date(n);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      }
+      return str;
+    }
+
+    function render() {
+      if (!rawData.length) return;
+      const personTab = document.querySelector('[data-tab="person"]');
+      const deptTab = document.querySelector('[data-tab="dept"]');
+      personTab.classList.toggle('active', currentTab === 'person');
+      deptTab.classList.toggle('active', currentTab === 'dept');
+
+      document.getElementById('countInfo').textContent = `共 ${rawData.length} 条申购记录`;
+
+      // Stats
+      const people = new Set(rawData.map(d => d.name));
+      const depts = new Set(rawData.map(d => d.dept));
+      const totalAmt = rawData.reduce((s,d) => s + (d.amount || 0), 0);
+      document.getElementById('statsRow').innerHTML = `
+        <div class="stat-card glass"><div class="num">${rawData.length}</div><div class="label">申购次数</div></div>
+        <div class="stat-card glass"><div class="num">${people.size}</div><div class="label">申购人数</div></div>
+        <div class="stat-card glass"><div class="num">${depts.size}</div><div class="label">涉及部门</div></div>
+        <div class="stat-card glass"><div class="num">${totalAmt ? '¥' + totalAmt.toLocaleString() : '-'}</div><div class="label">总金额</div></div>
+      `;
+
+      if (currentTab === 'person') renderPerson();
+      else renderDept();
+    }
+
+    function renderPerson() {
+      const counts = {};
+      rawData.forEach(d => {
+        if (!counts[d.name]) counts[d.name] = { name: d.name, dept: d.dept, count: 0, total: 0 };
+        counts[d.name].count++;
+        counts[d.name].total += d.amount || 0;
+      });
+      const sorted = Object.values(counts).sort((a,b) => b.count - a.count || b.total - a.total);
+
+      // Title card
+      const top = sorted[0];
+      const title = TITLES['0'];
+      document.getElementById('titleCard').innerHTML = `
+        <div class="title-card glass">
+          <div class="emoji">${title.emoji}</div>
+          <div class="info">
+            <h3>🏆 ${top.name}（${top.dept}）— ${title.label}</h3>
+            <p>${title.desc} · 本月申购 ${top.count} 次，共计 ¥${top.total.toLocaleString()}</p>
+          </div>
+        </div>
+      `;
+
+      let html = `<table class="rank-table">
+        <thead><tr>
+          <th style="width:50px">#</th>
+          <th>姓名</th>
+          <th>部门</th>
+          <th style="text-align:center">申购次数</th>
+          <th style="text-align:right">总金额</th>
+          <th>称号</th>
+        </tr></thead><tbody>`;
+      sorted.forEach((d,i) => {
+        const rank = i + 1;
+        const rankClass = rank <= 3 ? `rank-${rank}` : '';
+        let badge = '';
+        if (rank === 1) badge = '<span class="badge badge-gold">👑 申购王</span>';
+        else if (rank === 2) badge = '<span class="badge badge-silver">🥈 申购达人</span>';
+        else if (rank === 3) badge = '<span class="badge badge-bronze">🥉 申购能手</span>';
+        else if (d.count >= 3) badge = '<span class="badge badge-purple">💪 积极参与</span>';
+        html += `<tr>
+          <td><span class="rank-num ${rankClass}">${rank}</span></td>
+          <td><strong>${d.name}</strong></td>
+          <td>${d.dept}</td>
+          <td style="text-align:center"><strong>${d.count}</strong> 次</td>
+          <td style="text-align:right">${d.total ? '¥' + d.total.toLocaleString() : '-'}</td>
+          <td>${badge}</td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      document.getElementById('tableWrap').innerHTML = html;
+    }
+
+    function renderDept() {
+      const counts = {};
+      rawData.forEach(d => {
+        if (!counts[d.dept]) counts[d.dept] = { dept: d.dept, count: 0, total: 0, people: new Set() };
+        counts[d.dept].count++;
+        counts[d.dept].total += d.amount || 0;
+        counts[d.dept].people.add(d.name);
+      });
+      const sorted = Object.values(counts).map(d => ({...d, peopleCount: d.people.size})).sort((a,b) => b.count - a.count || b.total - a.total);
+
+      const top = sorted[0];
+      document.getElementById('titleCard').innerHTML = `
+        <div class="title-card glass">
+          <div class="emoji">🏢</div>
+          <div class="info">
+            <h3>🏆 ${top.dept} — 王牌部门</h3>
+            <p>全部门共 ${top.count} 次申购，${top.peopleCount} 人参与，氛围拉满</p>
+          </div>
+        </div>
+      `;
+
+      let html = `<table class="rank-table">
+        <thead><tr>
+          <th style="width:50px">#</th>
+          <th>部门</th>
+          <th style="text-align:center">申购次数</th>
+          <th style="text-align:center">参与人数</th>
+          <th style="text-align:right">总金额</th>
+          <th>人均</th>
+        </tr></thead><tbody>`;
+      sorted.forEach((d,i) => {
+        const rank = i + 1;
+        const rankClass = rank <= 3 ? `rank-${rank}` : '';
+        const avg = d.peopleCount ? d.total / d.peopleCount : 0;
+        html += `<tr>
+          <td><span class="rank-num ${rankClass}">${rank}</span></td>
+          <td><strong>${d.dept}</strong></td>
+          <td style="text-align:center"><strong>${d.count}</strong> 次</td>
+          <td style="text-align:center">${d.peopleCount} 人</td>
+          <td style="text-align:right">${d.total ? '¥' + d.total.toLocaleString() : '-'}</td>
+          <td>${avg ? '¥' + avg.toLocaleString(undefined,{maximumFractionDigits:0}) : '-'}</td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      document.getElementById('tableWrap').innerHTML = html;
+    }
+
+    // ─── Events ───
+    document.getElementById('uploadArea').addEventListener('click', function(e) {
+      if (e.target.tagName === 'BUTTON') return;
+      document.getElementById('fileInput').click();
+    });
+    document.getElementById('uploadArea').addEventListener('dragover', function(e) {
+      e.preventDefault();
+      this.style.borderColor = 'var(--accent-1)';
+    });
+    document.getElementById('uploadArea').addEventListener('dragleave', function() {
+      this.style.borderColor = 'rgba(255,255,255,0.12)';
+    });
+    document.getElementById('uploadArea').addEventListener('drop', function(e) {
+      e.preventDefault();
+      this.style.borderColor = 'rgba(255,255,255,0.12)';
+      if (e.dataTransfer.files.length) parseExcel(e.dataTransfer.files[0]);
+    });
+    document.getElementById('fileInput').addEventListener('change', function() {
+      if (this.files.length) parseExcel(this.files[0]);
+    });
+
+    document.querySelectorAll('.tab').forEach(el => {
+      el.addEventListener('click', function() {
+        currentTab = this.dataset.tab;
+        render();
+      });
+    });
+
+    document.getElementById('sampleBtn').addEventListener('click', function(e) {
+      e.stopPropagation();
+      loadData(SAMPLE_DATA);
+    });
+  </script>
+</body>
+</html>
